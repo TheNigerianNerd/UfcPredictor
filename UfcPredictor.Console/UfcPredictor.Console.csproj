@@ -11,4 +11,8 @@
     <ProjectReference Include="..\UfcPredictor.Lib\UfcPredictor.Lib.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.54.0" />
+  </ItemGroup>
+
 </Project>
