@@ -1,42 +1,45 @@
-using System.Diagnostics.Contracts;
-using System.Text.RegularExpressions;
 using HtmlAgilityPack;
+using System.Net;
+using System.Text.RegularExpressions;
+
 namespace UfcPredictor.Lib;
 
 public class EventService
 {
     private readonly IWebLoader _webLoader;
+    private readonly IDataRepository _repository; // New Dependency
 
-    //Dependency insjection allowes us to swap out the real loader for a mock one during testing
-    public EventService(IWebLoader webLoader)
+    // Update constructor to take 2 arguments
+    public EventService(IWebLoader webLoader, IDataRepository repository)
     {
         _webLoader = webLoader;
+        _repository = repository;
     }
 
     public async Task<List<Event>> GetUpcomingEvents(string url)
     {
+        // 1. Try Cache First
+        var cachedEvents = await _repository.GetEventsAsync();
+        if (cachedEvents.Any()) return cachedEvents;
+
+        // 2. Scrape if cache is empty
         List<Event> events = new();
         HtmlDocument doc = await _webLoader.LoadFromWebAsync(url);
 
-        // This XPath targets the rows in the main statistics table
         var eventRows = doc.DocumentNode.SelectNodes("//tr[contains(@class, 'b-statistics__table-row')]");
 
         if (eventRows != null)
         {
-            // Chapter 3: Iterating through the collection
             foreach (var row in eventRows)
             {
-                // The first <i> tag inside the row usually contains the link
                 var linkNode = row.SelectSingleNode(".//i/a");
                 var dateNode = row.SelectSingleNode(".//span[@class='b-statistics__date']");
                 var locationNode = row.SelectSingleNode(".//td[contains(@class, 'b-statistics__table-col_style_big-top-padding')]");
 
                 if (linkNode != null)
                 {
-                    // Chapter 5: Using Object Initializer syntax
                     events.Add(new Event
                     {
-                        // Use a helper to scrub the text
                         Name = Clean(linkNode.InnerText),
                         Url = linkNode.GetAttributeValue("href", ""),
                         Date = Clean(dateNode?.InnerText),
@@ -45,17 +48,17 @@ public class EventService
                 }
             }
         }
+
+        // 3. Save to Cache for next time
+        if (events.Any()) await _repository.SaveEventsAsync(events);
+
         return events;
     }
+
     private string Clean(string? input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
-
-        // 1. Decode any HTML entities like &nbsp; or &amp;
-        string decoded = System.Net.WebUtility.HtmlDecode(input);
-
-        // 2. Replace multiple whitespace/newlines with a single space
-        // and trim the ends.
+        string decoded = WebUtility.HtmlDecode(input);
         return Regex.Replace(decoded, @"\s+", " ").Trim();
     }
 }

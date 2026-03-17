@@ -9,12 +9,18 @@ namespace UfcPredictor.Tests;
 public class FightServiceTests
 {
     private readonly Mock<IWebLoader> _mockLoader;
+    private readonly Mock<IDataRepository> _mockRepo; // 1. Added mock repo
     private readonly FightService _sut;
 
     public FightServiceTests()
     {
         _mockLoader = new Mock<IWebLoader>();
-        _sut = new FightService(_mockLoader.Object);
+        _mockRepo = new Mock<IDataRepository>(); // 2. Initialize
+
+        _mockRepo.Setup(r => r.GetFightsAsync(It.IsAny<string>())).ReturnsAsync(new List<Fight>());
+        
+        // 3. Pass both to the constructor
+        _sut = new FightService(_mockLoader.Object, _mockRepo.Object);
     }
 
     [Fact]
@@ -60,7 +66,7 @@ public class FightServiceTests
         SetupMock(html);
 
         // Act
-        var result = await _sut.GetFighterDetailsAsync("http://test.com/fighter");
+        var result = await _sut.GetFighterWithCacheAsync("http://test.com/fighter", "Israel Adesanya");
 
         // Assert
         result.Name.Should().Be("Israel Adesanya");

@@ -1,35 +1,32 @@
+Here is the updated AGENTS.md reflecting our shift to .NET 10, the completion of the Repository Pattern, and our refined caching logic. This version is primed for a Senior QA profile—clean, structured, and focused on the "Source of Truth."
 🎯 Project Mission
 
-A .NET 8 CLI tool for UFC event discovery and fight prediction, utilizing a "Tale of the Tape" deep-scrape architecture.
+A .NET 10 CLI tool for UFC event discovery and fight prediction, utilizing a Repository-backed "Tale of the Tape" deep-scrape architecture.
 🏗️ Technical Stack
 
-    Language/Runtime: C# 12 / .NET 8.0
+    Language/Runtime: C# 14 / .NET 10.0
 
     UI Framework: Spectre.Console (SelectionPrompt, Tables, Status/Spinners).
 
-    HTML Parsing: HtmlAgilityPack using XPath selectors.
+    HTML Parsing: HtmlAgilityPack with specialized Clean() regex/entity decoding.
 
-    Architecture: * UfcPredictor.Lib: Core models (Event, Fight, Fighter) and ScraperService.
+    Persistence: JSON-based local caching via System.Text.Json.
 
-        UfcPredictor.Console: UI and Navigation State Machine.
-
-        UfcPredictor.Tests: xUnit + Moq + FluentAssertions.
+    Testing: xUnit + Moq + FluentAssertions.
 
 📜 Established Patterns & Constraints
 
-    Testable Scraper: Always use the IWebLoader interface and Dependency Injection. Never instantiate HtmlWeb directly inside FightService or EventService.
+    Repository Pattern: IDataRepository acts as the gatekeeper. Services (EventService, FightService) coordinate between the IWebLoader (Network) and the IDataRepository (Disk).
 
-    Navigation State: The UI uses nested while loops with a [Back] option to manage navigation depth (Events -> Fights -> Fighter Details).
+    Cache-Aside Pattern: 1. Check Cache.
+    2. If missing/expired, Scrape Web.
+    3. Update Cache.
 
-    Parallel Execution: Use Task.WhenAll when fetching multiple fighter details to optimize performance.
+    Testable Scrapers: Constructor Injection is mandatory. All services require IWebLoader and IDataRepository. Tests must verify that web calls are skipped when valid cache exists.
 
-    Data Integrity: Use .Trim() and .Replace() during scraping to sanitize HTML whitespace.
+    Data Resiliency: The Clean() helper handles &nbsp;, &amp;, and messy whitespace via WebUtility.HtmlDecode and Regex \s+.
 
-    Test-Driven Design/Development: Cover services with valid tests, ensuring edge cases such as &nbsp and &amp are adequately covered by application logic to avoid breaking logic
-
-    Repository Pattern: UI components must call IDataRepository, which handles the logic between Scraped data and Cached data.
-
-    Cache Policy: Scraped data is considered "Stale" after 48 hours.
+    Parallel Execution: Task.WhenAll is used in the UI layer to hydrate multiple fighter profiles simultaneously.
 
 🔍 Active XPaths (Source: ufcstats.com)
 
@@ -39,13 +36,15 @@ A .NET 8 CLI tool for UFC event discovery and fight prediction, utilizing a "Tal
 
     Fighter Profile Name: //span[@class='b-content__title-highlight']
 
-    Fighter Stats List: //li[contains(@class, 'b-list__info-box-item')]
+    Fighter Stats List: //li[contains(@class, 'b-list__box-list-item')] (Note: Updated from info-box to box-list).
 
-🚀 Pending Roadmap
+🚀 Roadmap Progress
 
-    [ ] Sprint 4: Implement XML/JSON Caching (Local Data Source).
+    [x] Sprint 3: Comprehensive Test Suite & TDD.
 
-    [ ] Sprint 5: Build the Prediction Logic (Algorithm-based "Winner" selection).
+    [x] Sprint 4: Local JSON Caching & Repository Pattern.
+
+    [ ] Sprint 5: Prediction Engine (Algorithm-based "Winner" selection).
 
     [ ] Sprint 6: Refactor XPaths into appsettings.json.
 
@@ -53,10 +52,10 @@ A .NET 8 CLI tool for UFC event discovery and fight prediction, utilizing a "Tal
 
 💡 Agent Instructions
 
-When resuming this project:
+    Namespace: UfcPredictor.Lib, UfcPredictor.Console, UfcPredictor.Tests.
 
-    Read this file to align with the existing namespace structure (UfcPredictor).
+    Persona: User is a Senior .NET QA Engineer. Prioritize "Fail-fast" logic, defensive coding, and verifiable test counts.
 
-    Assume the user is a Senior .NET QA Automation Engineer—focus on code quality, resiliency, and testability.
+    Context: Align with Mark J. Price’s .NET concepts regarding Dependency Injection and File System I/O (Chapters 5 & 9).
 
-    Reference Mark J. Price's .NET book concepts (Chapters 1-5) for educational context.
+    Cache Policy: Fighter and Event data expires after 7 days (configured via CacheExpirationDays).

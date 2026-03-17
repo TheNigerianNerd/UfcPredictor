@@ -1,17 +1,27 @@
 using HtmlAgilityPack;
-using UfcPredictor.Lib;
+using System.Net;
+using System.Text.RegularExpressions;
+
+namespace UfcPredictor.Lib;
 
 public class FightService
 {
     private readonly IWebLoader _webLoader;
+    private readonly IDataRepository _repository;
 
-    public FightService(IWebLoader webLoader)
+    public FightService(IWebLoader webLoader, IDataRepository repository)
     {
         _webLoader = webLoader;
+        _repository = repository;
     }
-    // This method scrapes the fight details from the given URL and returns a list of Fight objects
+
     public async Task<List<Fight>> GetUpcomingFightsAsync(string url)
     {
+        // 1. Check Cache (using the URL as a unique key for the event's fight list)
+        var cachedFights = await _repository.GetFightsAsync(url);
+        if (cachedFights.Any()) return cachedFights;
+
+        // 2. Scrape if not cached
         List<Fight> fights = new();
         HtmlDocument doc = await _webLoader.LoadFromWebAsync(url);
         var rows = doc.DocumentNode.SelectNodes("//tr[contains(@class, 'b-fight-details__table-row')]");
@@ -23,49 +33,60 @@ public class FightService
             {
                 fights.Add(new Fight
                 {
-                    FighterOne = fighterNodes[0].InnerText.Trim(),
+                    FighterOne = Clean(fighterNodes[0].InnerText),
                     FighterOneUrl = fighterNodes[0].GetAttributeValue("href", ""),
-                    FighterTwo = fighterNodes[1].InnerText.Trim(),
+                    FighterTwo = Clean(fighterNodes[1].InnerText),
                     FighterTwoUrl = fighterNodes[1].GetAttributeValue("href", "")
                 });
             }
         }
+
+        // 3. Persist
+        if (fights.Any()) await _repository.SaveFightsAsync(url, fights);
+        
         return fights;
     }
-    // This method scrapes the fighter details from the given URL and returns a Fighter object
-   public async Task<Fighter> GetFighterDetailsAsync(string url)
-{
-    HtmlDocument doc = await _webLoader.LoadFromWebAsync(url);
-    var fighter = new Fighter();
 
-    fighter.Name = doc.DocumentNode.SelectSingleNode("//span[@class='b-content__title-highlight']")?.InnerText.Trim() ?? "Unknown";
-    fighter.Record = doc.DocumentNode.SelectSingleNode("//span[@class='b-content__title-record']")?.InnerText.Trim();
-
-    // BUG FIX: Updated class name to match actual HTML: b-list__box-list-item
-    var infoNodes = doc.DocumentNode.SelectNodes("//li[contains(@class, 'b-list__box-list-item')]");
-
-    if (infoNodes != null)
+    public async Task<Fighter> GetFighterWithCacheAsync(string url, string name)
     {
-        foreach (var node in infoNodes)
+        // 1. Try Cache
+        var cached = await _repository.GetFighterAsync(name);
+        if (cached != null) return cached;
+
+        // 2. Scrape
+        HtmlDocument doc = await _webLoader.LoadFromWebAsync(url);
+        var fighter = new Fighter
         {
-            // We look for the <i> child which contains the label
-            var labelNode = node.SelectSingleNode(".//i");
-            if (labelNode == null) continue;
+            Name = Clean(doc.DocumentNode.SelectSingleNode("//span[@class='b-content__title-highlight']")?.InnerText) ?? "Unknown",
+            Record = Clean(doc.DocumentNode.SelectSingleNode("//span[@class='b-content__title-record']")?.InnerText)
+        };
 
-            string label = labelNode.InnerText.Trim().ToLower();
-            
-            // The value is the text of the <li> MINUS the text of the <i>
-            // .Replace() is fine here, but we ensure we are targeting the right strings
-            string fullText = node.InnerText;
-            string value = fullText.Replace(labelNode.InnerText, string.Empty);
+        var infoNodes = doc.DocumentNode.SelectNodes("//li[contains(@class, 'b-list__box-list-item')]");
+        if (infoNodes != null)
+        {
+            foreach (var node in infoNodes)
+            {
+                var labelNode = node.SelectSingleNode(".//i");
+                if (labelNode == null) continue;
 
-            value = value.Trim();
+                string label = labelNode.InnerText.Trim().ToLower();
+                string value = Clean(node.InnerText.Replace(labelNode.InnerText, string.Empty));
 
-            if (label.Contains("height")) fighter.Height = value;
-            if (label.Contains("reach")) fighter.Reach = value;
-            if (label.Contains("stance")) fighter.Stance = value;
+                if (label.Contains("height")) fighter.Height = value;
+                if (label.Contains("reach")) fighter.Reach = value;
+                if (label.Contains("stance")) fighter.Stance = value;
+            }
         }
+
+        // 3. Save to local storage
+        await _repository.SaveFighterAsync(fighter);
+        return fighter;
     }
-    return fighter;
-}
+
+    private string Clean(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+        string decoded = WebUtility.HtmlDecode(input);
+        return Regex.Replace(decoded, @"\s+", " ").Trim();
+    }
 }

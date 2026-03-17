@@ -7,20 +7,27 @@ namespace UfcPredictor.Tests;
 
 public class EventServiceTests
 {
-    private readonly Mock<IWebLoader> _mockWebLoader;
-    private readonly EventService _sut; // System Under Test
+  private readonly Mock<IWebLoader> _mockWebLoader;
+  private readonly Mock<IDataRepository> _mockRepo; // 1. Add the field
 
-    public EventServiceTests()
-    {
-        _mockWebLoader = new Mock<IWebLoader>();
-        _sut = new EventService(_mockWebLoader.Object);
-    }
+  private readonly EventService _sut;
 
-    [Fact]
-    public async Task GetUpcomingEvents_ValidHtml_ReturnsPopulatedList()
-    {
-        // Arrange
-        var html = @"
+  public EventServiceTests()
+  {
+    _mockWebLoader = new Mock<IWebLoader>();
+    _mockRepo = new Mock<IDataRepository>(); // 2. Initialize the mock
+
+    _mockRepo.Setup(r => r.GetEventsAsync()).ReturnsAsync(new List<Event>());
+
+    // 3. Pass both mocks to the constructor
+    _sut = new EventService(_mockWebLoader.Object, _mockRepo.Object);
+  }
+
+  [Fact]
+  public async Task GetUpcomingEvents_ValidHtml_ReturnsPopulatedList()
+  {
+    // Arrange
+    var html = @"
         <table>
             <tr class='b-statistics__table-row'>
                   <td class='b-statistics__table-col'>
@@ -39,50 +46,50 @@ public class EventServiceTests
                 </tr>
         </table>";
 
-        SetupMockDocument(html);
+    SetupMockDocument(html);
 
-        // Act
-        var result = await _sut.GetUpcomingEvents("http://fakeurl.com");
+    // Act
+    var result = await _sut.GetUpcomingEvents("http://fakeurl.com");
 
-        // Exact matches based on the mock HTML above
-        result[0].Name.Should().Be("UFC Fight Night: Evloev vs. Murphy");
-        result[0].Date.Should().Be("March 21, 2026");
-        result[0].Location.Should().Be("London, England, United Kingdom");
-        result[0].Url.Should().Contain("69108cb8b32efe04");
-    }
-    [Fact]
-    public async Task GetUpcomingEvents_NoMatchingRows_ReturnsEmptyList()
-    {
-        // Arrange
-        var html = "<div>No table here</div>";
-        SetupMockDocument(html);
+    // Exact matches based on the mock HTML above
+    result[0].Name.Should().Be("UFC Fight Night: Evloev vs. Murphy");
+    result[0].Date.Should().Be("March 21, 2026");
+    result[0].Location.Should().Be("London, England, United Kingdom");
+    result[0].Url.Should().Contain("69108cb8b32efe04");
+  }
+  [Fact]
+  public async Task GetUpcomingEvents_NoMatchingRows_ReturnsEmptyList()
+  {
+    // Arrange
+    var html = "<div>No table here</div>";
+    SetupMockDocument(html);
 
-        // Act
-        var result = await _sut.GetUpcomingEvents("http://fakeurl.com");
+    // Act
+    var result = await _sut.GetUpcomingEvents("http://fakeurl.com");
 
-        // Assert
-        result.Should().BeEmpty();
-    }
-    [Fact]
-    public async Task GetUpcomingEvents_MissingLinkNode_SkipsRow()
-    {
-        // Arrange: Row exists but <a> tag is missing
-        var html = @"<tr class='b-statistics__table-row'>
+    // Assert
+    result.Should().BeEmpty();
+  }
+  [Fact]
+  public async Task GetUpcomingEvents_MissingLinkNode_SkipsRow()
+  {
+    // Arrange: Row exists but <a> tag is missing
+    var html = @"<tr class='b-statistics__table-row'>
                         <td><i>No Link Here</i></td>
                      </tr>";
-        SetupMockDocument(html);
+    SetupMockDocument(html);
 
-        // Act
-        var result = await _sut.GetUpcomingEvents("http://fakeurl.com");
+    // Act
+    var result = await _sut.GetUpcomingEvents("http://fakeurl.com");
 
-        // Assert
-        result.Should().BeEmpty();
-    }
-    [Fact]
-    public async Task GetUpcomingEvents_WithMessyWhitespace_ReturnsCleanStrings()
-    {
-        // Arrange
-        var messyHtml = @"
+    // Assert
+    result.Should().BeEmpty();
+  }
+  [Fact]
+  public async Task GetUpcomingEvents_WithMessyWhitespace_ReturnsCleanStrings()
+  {
+    // Arrange
+    var messyHtml = @"
         <tr class='b-statistics__table-row'>
                   <td class='b-statistics__table-col'>                  
                     <i class='b-statistics__table-content'>
@@ -101,24 +108,24 @@ public class EventServiceTests
                   </td>
                 </tr>";
 
-        SetupMockDocument(messyHtml);
+    SetupMockDocument(messyHtml);
 
-        // Act
-        var result = await _sut.GetUpcomingEvents("http://fake.com");
+    // Act
+    var result = await _sut.GetUpcomingEvents("http://fake.com");
 
-        // Assert
-        result[0].Name.Should().Be("UFC Fight Night: Emmett vs. Vallejos");
-    }
-    [Fact]
-public async Task GetUpcomingEvents_WhenLinkIsMissing_SkipsRow()
-{
+    // Assert
+    result[0].Name.Should().Be("UFC Fight Night: Emmett vs. Vallejos");
+  }
+  [Fact]
+  public async Task GetUpcomingEvents_WhenLinkIsMissing_SkipsRow()
+  {
     // Arrange: Valid row structure but no <a> tag inside <i>
     var missingLinkHtml = @"
         <tr class='b-statistics__table-row'>
             <td><i>Link Coming Soon</i></td>
             <td><span class='b-statistics__date'>Jan 1, 2026</span></td>
         </tr>";
-    
+
     SetupMockDocument(missingLinkHtml);
 
     // Act
@@ -126,13 +133,36 @@ public async Task GetUpcomingEvents_WhenLinkIsMissing_SkipsRow()
 
     // Assert
     result.Should().BeEmpty();
-    }
-    // --- Helper Method ---
-    private void SetupMockDocument(string html)
-    {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-        _mockWebLoader.Setup(x => x.LoadFromWebAsync(It.IsAny<string>()))
-                   .ReturnsAsync(doc);
-    }
+  }
+  [Fact]
+  public async Task GetUpcomingEvents_WhenCacheExists_DoesNotCallWeb()
+  {
+    // Arrange
+    var mockLoader = new Mock<IWebLoader>();
+    var mockRepo = new Mock<IDataRepository>();
+
+    // Setup Repo to return data
+    var cachedEvents = new List<Event> { new Event { Name = "Cached UFC 300" } };
+    mockRepo.Setup(r => r.GetEventsAsync()).ReturnsAsync(cachedEvents);
+
+    var service = new EventService(mockLoader.Object, mockRepo.Object);
+
+    // Act
+    var result = await service.GetUpcomingEvents("http://fake.com");
+
+    // Assert
+    result.Should().HaveCount(1);
+    result[0].Name.Should().Be("Cached UFC 300");
+
+    // CRITICAL QA CHECK: Ensure the web loader was NEVER called
+    mockLoader.Verify(l => l.LoadFromWebAsync(It.IsAny<string>()), Times.Never);
+  }
+  // --- Helper Method ---
+  private void SetupMockDocument(string html)
+  {
+    var doc = new HtmlDocument();
+    doc.LoadHtml(html);
+    _mockWebLoader.Setup(x => x.LoadFromWebAsync(It.IsAny<string>()))
+               .ReturnsAsync(doc);
+  }
 }
