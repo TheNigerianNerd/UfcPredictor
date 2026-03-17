@@ -16,5 +16,7 @@ A .NET 8 console application that scrapes upcoming UFC events and fighter statis
 ## Roadmap
 - [x] Web Scraping MVP
 - [x] Interactive CLI Navigation
-- [ ] Local XML/SQL Data Caching
+- [x] TDD & xUnit Test Suite
+- [ ] Local JSON Data Caching (In Progress)
+- [ ] Web Client (Blazor/React) Integration
 - [ ] Prediction Engine (v1)

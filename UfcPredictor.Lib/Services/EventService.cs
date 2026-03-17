@@ -1,6 +1,8 @@
 using System.Diagnostics.Contracts;
+using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 namespace UfcPredictor.Lib;
+
 public class EventService
 {
     private readonly IWebLoader _webLoader;
@@ -34,14 +36,26 @@ public class EventService
                     // Chapter 5: Using Object Initializer syntax
                     events.Add(new Event
                     {
-                        Name = linkNode.InnerText.Trim(),
+                        // Use a helper to scrub the text
+                        Name = Clean(linkNode.InnerText),
                         Url = linkNode.GetAttributeValue("href", ""),
-                        Date = dateNode?.InnerText.Trim(),
-                        Location = locationNode?.InnerText.Trim()
+                        Date = Clean(dateNode?.InnerText),
+                        Location = Clean(locationNode?.InnerText)
                     });
                 }
             }
         }
         return events;
+    }
+    private string Clean(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+
+        // 1. Decode any HTML entities like &nbsp; or &amp;
+        string decoded = System.Net.WebUtility.HtmlDecode(input);
+
+        // 2. Replace multiple whitespace/newlines with a single space
+        // and trim the ends.
+        return Regex.Replace(decoded, @"\s+", " ").Trim();
     }
 }

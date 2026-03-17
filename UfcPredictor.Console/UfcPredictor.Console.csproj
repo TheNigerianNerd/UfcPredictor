@@ -15,4 +15,8 @@
     <PackageReference Include="Spectre.Console" Version="0.54.0" />
   </ItemGroup>
 
+  <Target Name="RunTestsBeforeBuild" BeforeTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Message Importance="High" Text="[TDD] Running UfcPredictor.Tests before build..." />
+    <Exec Command="dotnet test ../UfcPredictor.Tests/UfcPredictor.Tests.csproj" />
+</Target>
 </Project>
