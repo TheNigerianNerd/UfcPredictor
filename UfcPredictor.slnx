@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="UfcPredictor.Console/UfcPredictor.Console.csproj" />
   <Project Path="UfcPredictor.Lib/UfcPredictor.Lib.csproj" />
+  <Project Path="UfcPredictor.Tests/UfcPredictor.Tests.csproj" />
 </Solution>

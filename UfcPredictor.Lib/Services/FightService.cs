@@ -1,48 +1,19 @@
-﻿using HtmlAgilityPack;
+using HtmlAgilityPack;
+using UfcPredictor.Lib;
 
-namespace UfcPredictor.Lib;
-
-public class ScraperService
+public class FightService
 {
-    private readonly HtmlWeb _web = new();
+    private readonly IWebLoader _webLoader;
 
-    public async Task<List<Event>> GetUpcomingEvents(string url)
+    public FightService(IWebLoader webLoader)
     {
-        List<Event> events = new();
-        HtmlDocument doc = await _web.LoadFromWebAsync(url);
-
-        // This XPath targets the rows in the main statistics table
-        var eventRows = doc.DocumentNode.SelectNodes("//tr[contains(@class, 'b-statistics__table-row')]");
-
-        if (eventRows != null)
-        {
-            // Chapter 3: Iterating through the collection
-            foreach (var row in eventRows)
-            {
-                // The first <i> tag inside the row usually contains the link
-                var linkNode = row.SelectSingleNode(".//i/a");
-                var dateNode = row.SelectSingleNode(".//span[@class='b-statistics__date']");
-                var locationNode = row.SelectSingleNode(".//td[contains(@class, 'b-statistics__table-col_style_margin-right')]");
-
-                if (linkNode != null)
-                {
-                    // Chapter 5: Using Object Initializer syntax
-                    events.Add(new Event
-                    {
-                        Name = linkNode.InnerText.Trim(),
-                        Url = linkNode.GetAttributeValue("href", ""),
-                        Date = dateNode?.InnerText.Trim(),
-                        Location = locationNode?.InnerText.Trim()
-                    });
-                }
-            }
-        }
-        return events;
+        _webLoader = webLoader;
     }
+    // This method scrapes the fight details from the given URL and returns a list of Fight objects
     public async Task<List<Fight>> GetUpcomingFightsAsync(string url)
     {
         List<Fight> fights = new();
-        HtmlDocument doc = await _web.LoadFromWebAsync(url);
+        HtmlDocument doc = await _webLoader.LoadFromWebAsync(url);
         var rows = doc.DocumentNode.SelectNodes("//tr[contains(@class, 'b-fight-details__table-row')]");
 
         foreach (var row in rows ?? Enumerable.Empty<HtmlNode>())
@@ -61,10 +32,10 @@ public class ScraperService
         }
         return fights;
     }
-
+    // This method scrapes the fighter details from the given URL and returns a Fighter object
     public async Task<Fighter> GetFighterDetailsAsync(string url)
     {
-        HtmlDocument doc = await _web.LoadFromWebAsync(url);
+        HtmlDocument doc = await _webLoader.LoadFromWebAsync(url);
         var fighter = new Fighter();
 
         fighter.Name = doc.DocumentNode.SelectSingleNode("//span[@class='b-content__title-highlight']")?.InnerText.Trim() ?? "Unknown";
